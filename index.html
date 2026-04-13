@@ -28,20 +28,21 @@ body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);fon
 button,input,select{font-family:'DM Sans',sans-serif;font-size:15px}
 input,select{padding:12px 14px;border-radius:var(--rs);border:1px solid var(--border2);background:var(--surface);color:var(--text);outline:none;width:100%}
 input::placeholder{color:var(--text3)}
-.sync-bar{background:var(--blue-bg);color:var(--blue);font-size:12px;padding:6px 1rem;text-align:center;display:none}
+.sync-bar{font-size:12px;padding:6px 1rem;text-align:center;display:none}
 .sync-bar.show{display:block}
+.sync-bar.info{background:var(--blue-bg);color:var(--blue)}
 .sync-bar.err{background:#fdf0ee;color:var(--red)}
 .sync-bar.ok{background:var(--green-bg);color:var(--green)}
 </style>
 </head>
 <body>
-<div class="sync-bar" id="sync-bar">同步中...</div>
+<div class="sync-bar" id="sync-bar"></div>
 <div id="root"></div>
 <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
 <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
 <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 <script type="text/babel">
-const {useState,useEffect,useMemo,useCallback,useRef} = React;
+const {useState,useEffect,useMemo,useCallback} = React;
 
 const SUPABASE_URL = 'https://umvewlzzwoouuhslaivt.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_h6kSR9NpWQggK_5wL_dnyA_DV1-KjNy';
@@ -68,10 +69,10 @@ const ALL_TABS=[
 const MOBILE_NAV=[{id:'home',icon:'⊙',label:'總覽'},{id:'add',icon:'+',label:'新增'},{id:'records',icon:'≡',label:'明細'},{id:'more',icon:'···',label:'更多'}];
 const MORE_TABS=ALL_TABS.slice(3);
 
-function showSync(msg, type='info'){
+function showSync(msg,type='info'){
   const el=document.getElementById('sync-bar');
-  el.textContent=msg; el.className='sync-bar show '+(type==='error'?'err':type==='ok'?'ok':'');
-  if(type!=='info') setTimeout(()=>el.classList.remove('show'),2500);
+  el.textContent=msg;el.className='sync-bar show '+type;
+  if(type!=='info')setTimeout(()=>el.classList.remove('show'),2500);
 }
 
 function fmt(n){return Math.round(n).toLocaleString();}
@@ -97,6 +98,43 @@ const Btn=({children,onClick,style={}})=>(
   <button onClick={onClick} style={{padding:'12px 16px',borderRadius:'var(--r)',border:'none',background:'var(--text)',color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer',width:'100%',...style}}>{children}</button>
 );
 
+function LoginPage(){
+  const [loading,setLoading]=useState(false);
+  async function signInWithGoogle(){
+    setLoading(true);
+    const {error}=await sb.auth.signInWithOAuth({
+      provider:'google',
+      options:{redirectTo:window.location.href}
+    });
+    if(error){showSync('登入失敗：'+error.message,'err');setLoading(false);}
+  }
+  return(
+    <div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',minHeight:'100vh',padding:'2rem',background:'var(--bg)'}}>
+      <div style={{width:64,height:64,borderRadius:20,background:'var(--surface)',border:'1px solid var(--border)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:28,marginBottom:'1.5rem',boxShadow:'0 2px 12px rgba(0,0,0,0.06)'}}>💰</div>
+      <div style={{fontSize:24,fontWeight:600,letterSpacing:'-0.5px',marginBottom:8}}>我的帳本</div>
+      <div style={{fontSize:14,color:'var(--text3)',marginBottom:'2.5rem',textAlign:'center',lineHeight:1.6}}>個人記帳 · 雲端同步 · AI 分析<br/>登入後資料只屬於你</div>
+      <button onClick={signInWithGoogle} disabled={loading} style={{
+        display:'flex',alignItems:'center',gap:12,padding:'14px 24px',
+        borderRadius:'var(--r)',border:'1px solid var(--border2)',
+        background:'var(--surface)',cursor:'pointer',fontSize:15,fontWeight:500,
+        width:'100%',maxWidth:320,justifyContent:'center',
+        opacity:loading?0.6:1
+      }}>
+        <svg width="20" height="20" viewBox="0 0 48 48">
+          <path fill="#EA4335" d="M24 9.5c3.54 0 6.71 1.22 9.21 3.6l6.85-6.85C35.9 2.38 30.47 0 24 0 14.62 0 6.51 5.38 2.56 13.22l7.98 6.19C12.43 13.72 17.74 9.5 24 9.5z"/>
+          <path fill="#4285F4" d="M46.98 24.55c0-1.57-.15-3.09-.38-4.55H24v9.02h12.94c-.58 2.96-2.26 5.48-4.78 7.18l7.73 6c4.51-4.18 7.09-10.36 7.09-17.65z"/>
+          <path fill="#FBBC05" d="M10.53 28.59c-.48-1.45-.76-2.99-.76-4.59s.27-3.14.76-4.59l-7.98-6.19C.92 16.46 0 20.12 0 24c0 3.88.92 7.54 2.56 10.78l7.97-6.19z"/>
+          <path fill="#34A853" d="M24 48c6.48 0 11.93-2.13 15.89-5.81l-7.73-6c-2.18 1.48-4.97 2.31-8.16 2.31-6.26 0-11.57-4.22-13.47-9.91l-7.98 6.19C6.51 42.62 14.62 48 24 48z"/>
+        </svg>
+        {loading?'登入中...':'使用 Google 帳號登入'}
+      </button>
+      <div style={{marginTop:'1.5rem',fontSize:12,color:'var(--text3)',textAlign:'center',lineHeight:1.6}}>
+        登入後資料儲存於 Supabase 雲端<br/>電腦與手機自動同步
+      </div>
+    </div>
+  );
+}
+
 function HomeView({records,accounts,budgets,viewMonth}){
   const m=ym(viewMonth);
   const mo=records.filter(r=>r.date.startsWith(m));
@@ -106,21 +144,17 @@ function HomeView({records,accounts,budgets,viewMonth}){
   const saveRate=income>0?Math.round((income-expense)/income*100):null;
   const totalAssets=accounts.reduce((s,a)=>{
     let b=Number(a.init)||0;
-    records.forEach(r=>{
-      if(r.type==='inc'&&r.acct_id===a.id)b+=Number(r.twd);
-      if(r.type==='exp'&&r.acct_id===a.id)b-=Number(r.twd);
-    });
+    records.forEach(r=>{if(r.type==='inc'&&r.acct_id===a.id)b+=Number(r.twd);if(r.type==='exp'&&r.acct_id===a.id)b-=Number(r.twd);});
     return s+b;
   },0);
   const days=new Date().getDate();
   const projected=days>0?Math.round(expense/days*30):0;
-  const catExp={};
-  mo.filter(r=>r.type==='exp').forEach(r=>{catExp[r.cat]=(catExp[r.cat]||0)+Number(r.twd);});
+  const catExp={};mo.filter(r=>r.type==='exp').forEach(r=>{catExp[r.cat]=(catExp[r.cat]||0)+Number(r.twd);});
   const top=Object.entries(catExp).sort((a,b)=>b[1]-a[1]).slice(0,6);
   const max=top[0]?top[0][1]:1;
   return(
     <div>
-      <Card style={{marginBottom:10}}>
+      <Card>
         <div style={{fontSize:11,color:'var(--text3)',fontWeight:500,letterSpacing:'0.06em',textTransform:'uppercase',marginBottom:6}}>本月支出</div>
         <div style={{fontSize:40,fontWeight:600,letterSpacing:'-2px',color:'var(--red)',fontFamily:'DM Mono,monospace',lineHeight:1,marginBottom:'1rem'}}>${fmt(expense)}</div>
         <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:'1rem'}}>
@@ -160,7 +194,7 @@ function HomeView({records,accounts,budgets,viewMonth}){
   );
 }
 
-function AddView({records,setRecords,accounts,onDone}){
+function AddView({records,setRecords,accounts,userId,onDone}){
   const [type,setType]=useState('exp');
   const [date,setDate]=useState(today());
   const [acctId,setAcctId]=useState(accounts[0]?.id||1);
@@ -175,17 +209,15 @@ function AddView({records,setRecords,accounts,onDone}){
   const rate=FX[currency]||1;
   const twd=amount&&currency!=='TWD'?Math.round(parseFloat(amount)*rate):null;
   const typeConf={exp:{label:'支出',color:'var(--red)',bg:'var(--red-bg)'},inc:{label:'收入',color:'var(--green)',bg:'var(--green-bg)'},xfr:{label:'轉帳',color:'var(--blue)',bg:'var(--blue-bg)'}};
-
   async function submit(){
     const a=parseFloat(amount);if(!a||a<=0)return;
     setSaving(true);showSync('儲存中...');
-    const rec={id:Date.now(),date,type,acct_id:parseInt(acctId),cat,note:note.trim(),payer:'',amount:a,currency,twd:Math.round(a*rate)};
+    const rec={id:Date.now(),date,type,acct_id:parseInt(acctId),cat,note:note.trim(),payer:'',amount:a,currency,twd:Math.round(a*rate),user_id:userId};
     const {error}=await sb.from('records').upsert(rec);
-    if(error){showSync('儲存失敗：'+error.message,'error');}
-    else{setRecords([rec,...records]);showSync('已儲存到雲端','ok');setNote('');setAmount('');setDone(true);setTimeout(()=>{setDone(false);if(onDone)onDone();},1200);}
+    if(error){showSync('儲存失敗','err');}
+    else{setRecords([rec,...records]);showSync('已儲存','ok');setNote('');setAmount('');setDone(true);setTimeout(()=>{setDone(false);if(onDone)onDone();},1200);}
     setSaving(false);
   }
-
   if(done)return(<div style={{display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:'4rem 1rem',gap:12}}><div style={{width:64,height:64,borderRadius:'50%',background:'var(--green-bg)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:28}}>✓</div><div style={{fontSize:18,fontWeight:600,color:'var(--green)'}}>已儲存到雲端！</div></div>);
   const inp={padding:'12px 14px',borderRadius:'var(--rs)',border:'1px solid var(--border2)',background:'var(--surface)',color:'var(--text)',outline:'none',width:'100%',fontSize:15};
   return(
@@ -198,9 +230,7 @@ function AddView({records,setRecords,accounts,onDone}){
         <div style={{fontSize:12,color:'var(--text3)',marginBottom:4}}>金額 {twd&&<span style={{color:'var(--blue)',fontSize:12}}>≈ TWD ${fmt(twd)}</span>}</div>
         <div style={{display:'flex',gap:8}}>
           <input type="number" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0" inputMode="decimal" style={{...inp,fontSize:26,fontWeight:600,fontFamily:'DM Mono,monospace',color:typeConf[type].color,flex:2}}/>
-          <select value={currency} onChange={e=>setCurrency(e.target.value)} style={{...inp,flex:1,maxWidth:90}}>
-            {Object.keys(FX).map(c=><option key={c}>{c}</option>)}
-          </select>
+          <select value={currency} onChange={e=>setCurrency(e.target.value)} style={{...inp,flex:1,maxWidth:90}}>{Object.keys(FX).map(c=><option key={c}>{c}</option>)}</select>
         </div>
       </div>
       <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}>
@@ -223,10 +253,9 @@ function RecordsView({records,setRecords,viewMonth}){
   const m=ym(viewMonth);
   const filtered=records.filter(r=>r.date.startsWith(m));
   async function del(id){
-    showSync('刪除中...');
-    const {error}=await sb.from('records').delete().eq('id',id);
-    if(error)showSync('刪除失敗','error');
-    else{setRecords(records.filter(x=>x.id!==id));showSync('已刪除','ok');}
+    await sb.from('records').delete().eq('id',id);
+    setRecords(records.filter(x=>x.id!==id));
+    showSync('已刪除','ok');
   }
   function exportCSV(){
     let csv='\uFEFF日期,類型,分類,備註,金額,幣別,TWD\n';
@@ -264,9 +293,8 @@ function RecordsView({records,setRecords,viewMonth}){
 function BudgetView({budgets,setBudgets,records,viewMonth}){
   const m=ym(viewMonth);
   const mo=records.filter(r=>r.date.startsWith(m));
-  async function updateBudget(cat,val){
-    const newBudgets={...budgets,[cat]:val};
-    setBudgets(newBudgets);
+  async function update(cat,val){
+    setBudgets({...budgets,[cat]:val});
     await sb.from('budgets').upsert({cat,amount:val});
   }
   return(<Card><SLabel>設定月預算（TWD）</SLabel>{CATS.exp.map(cat=>{
@@ -275,9 +303,7 @@ function BudgetView({budgets,setBudgets,records,viewMonth}){
     return(<div key={cat} style={{marginBottom:14}}>
       <div style={{display:'flex',alignItems:'center',gap:8,marginBottom:6}}>
         <Badge cat={cat}/>
-        <input type="number" placeholder="月預算" value={bud||''} inputMode="numeric"
-          onChange={e=>updateBudget(cat,parseInt(e.target.value)||0)}
-          style={{flex:1,maxWidth:140,padding:'8px 10px',borderRadius:8,border:'1px solid var(--border2)',fontSize:13,color:'var(--text)',background:'var(--surface)',outline:'none'}}/>
+        <input type="number" placeholder="月預算" value={bud||''} inputMode="numeric" onChange={e=>update(cat,parseInt(e.target.value)||0)} style={{flex:1,maxWidth:140,padding:'8px 10px',borderRadius:8,border:'1px solid var(--border2)',fontSize:13,color:'var(--text)',background:'var(--surface)',outline:'none'}}/>
         {bud>0&&<span style={{fontSize:12,color:'var(--text3)',fontFamily:'DM Mono,monospace',flexShrink:0}}>${fmt(sp)}/{fmt(bud)}</span>}
       </div>
       {bud>0&&<ProgBar pct={pct} color={pct>90?'var(--red)':pct>70?'var(--amber)':'var(--green)'}/>}
@@ -291,9 +317,8 @@ function AccountsView({accounts,setAccounts,records}){
   async function add(){
     if(!name.trim())return;
     const acct={id:Date.now(),name:name.trim(),type,init:parseFloat(init)||0};
-    const {error}=await sb.from('accounts').upsert(acct);
-    if(!error){setAccounts([...accounts,acct]);setName('');setInit('');showSync('帳戶已儲存','ok');}
-    else showSync('儲存失敗','error');
+    await sb.from('accounts').upsert(acct);
+    setAccounts([...accounts,acct]);setName('');setInit('');showSync('已儲存','ok');
   }
   async function del(id){
     await sb.from('accounts').delete().eq('id',id);
@@ -313,8 +338,7 @@ function AccountsView({accounts,setAccounts,records}){
     </Card>
     <div style={{display:'grid',gridTemplateColumns:'repeat(auto-fill,minmax(140px,1fr))',gap:10}}>
       {accounts.map(a=>{
-        let b=Number(a.init)||0;
-        records.forEach(r=>{if(r.type==='inc'&&r.acct_id===a.id)b+=Number(r.twd);if(r.type==='exp'&&r.acct_id===a.id)b-=Number(r.twd);});
+        let b=Number(a.init)||0;records.forEach(r=>{if(r.type==='inc'&&r.acct_id===a.id)b+=Number(r.twd);if(r.type==='exp'&&r.acct_id===a.id)b-=Number(r.twd);});
         return(<div key={a.id} style={{background:'var(--surface)',borderRadius:'var(--r)',border:'1px solid var(--border)',padding:'1rem'}}>
           <div style={{fontSize:22,marginBottom:8}}>{ACCT_ICONS[a.type]||'💰'}</div>
           <div style={{fontSize:13,fontWeight:600,marginBottom:1}}>{a.name}</div>
@@ -327,98 +351,7 @@ function AccountsView({accounts,setAccounts,records}){
   </div>);
 }
 
-function FixedView({fixedItems,setFixedItems,records,setRecords,accounts,viewMonth}){
-  const [ft,setFt]=useState('exp');const [fd,setFd]=useState('');const [fc,setFc]=useState(CATS.exp[0]);const [fn,setFn]=useState('');const [fa,setFa]=useState('');
-  const m=ym(viewMonth);
-  const inp={padding:'12px 14px',borderRadius:'var(--rs)',border:'1px solid var(--border2)',background:'var(--surface)',color:'var(--text)',outline:'none',width:'100%',fontSize:15};
-  async function add(){
-    if(!fa||parseFloat(fa)<=0)return;
-    const item={id:Date.now(),type:ft,day:parseInt(fd)||1,cat:fc,note:fn.trim(),amount:parseFloat(fa)};
-    const {error}=await sb.from('fixed_items').upsert(item);
-    if(!error){setFixedItems([...fixedItems,item]);setFn('');setFa('');setFd('');showSync('已儲存','ok');}
-    else showSync('儲存失敗','error');
-  }
-  async function del(id){
-    await sb.from('fixed_items').delete().eq('id',id);
-    setFixedItems(fixedItems.filter(x=>x.id!==id));
-  }
-  async function applyMonth(){
-    if(records.some(r=>r.date.startsWith(m)&&r._fixed)){alert('本月已套用');return;}
-    const y=viewMonth.getFullYear(),mo2=viewMonth.getMonth()+1;
-    const newRecs=fixedItems.map(f=>({id:Date.now()+Math.random(),_fixed:true,date:`${y}-${String(mo2).padStart(2,'0')}-${String(f.day).padStart(2,'0')}`,type:f.type,acct_id:accounts[0]?.id,cat:f.cat,note:f.note+'（自動）',amount:f.amount,currency:'TWD',twd:f.amount}));
-    const {error}=await sb.from('records').upsert(newRecs);
-    if(!error){setRecords([...newRecs,...records]);showSync(`已套用 ${newRecs.length} 筆`,'ok');}
-    else showSync('套用失敗','error');
-  }
-  return(<div>
-    <Card>
-      <SLabel>新增固定收支</SLabel>
-      <div style={{display:'flex',gap:6,marginBottom:10}}>
-        {['exp','inc'].map(t=><button key={t} onClick={()=>{setFt(t);setFc(CATS[t][0]);}} style={{flex:1,padding:'10px',borderRadius:10,border:`1.5px solid ${ft===t?'var(--text)':'var(--border)'}`,background:ft===t?'var(--surface2)':'transparent',fontWeight:ft===t?600:400,fontSize:14,cursor:'pointer',color:ft===t?'var(--text)':'var(--text2)'}}>{t==='exp'?'支出':'收入'}</button>)}
-      </div>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr 1fr',gap:8,marginBottom:8}}>
-        <input type="number" value={fd} onChange={e=>setFd(e.target.value)} placeholder="每月幾號" inputMode="numeric" min="1" max="28" style={inp}/>
-        <select value={fc} onChange={e=>setFc(e.target.value)} style={inp}>{CATS[ft].map(c=><option key={c}>{c}</option>)}</select>
-        <input type="number" value={fa} onChange={e=>setFa(e.target.value)} placeholder="金額" inputMode="numeric" style={inp}/>
-      </div>
-      <input value={fn} onChange={e=>setFn(e.target.value)} placeholder="備註（房租、薪水…）" style={{...inp,marginBottom:10}}/>
-      <div style={{display:'grid',gridTemplateColumns:'2fr 1fr',gap:8}}>
-        <Btn onClick={add}>新增</Btn>
-        <button onClick={applyMonth} style={{padding:'12px',borderRadius:'var(--r)',border:'1px solid var(--border2)',background:'transparent',fontSize:13,color:'var(--text2)',cursor:'pointer'}}>套用本月</button>
-      </div>
-    </Card>
-    {fixedItems.length>0&&<Card style={{padding:'0 0.75rem'}}>{fixedItems.map((f,i)=>(<div key={f.id} style={{display:'flex',alignItems:'center',gap:10,padding:'11px 0',borderBottom:i<fixedItems.length-1?'1px solid var(--border)':'none'}}><div style={{width:40,height:40,borderRadius:10,background:'var(--surface2)',display:'flex',alignItems:'center',justifyContent:'center',fontSize:12,fontWeight:600,flexShrink:0}}>{f.day}日</div><div style={{flex:1}}><div style={{fontSize:13,fontWeight:500}}>{f.note||f.cat}</div><div style={{fontSize:11,color:'var(--text3)',marginTop:1}}>{f.type==='inc'?'收入':'支出'} · {f.cat}</div></div><div style={{fontSize:14,fontWeight:600,fontFamily:'DM Mono,monospace',color:f.type==='inc'?'var(--green)':'var(--red)'}}>${fmt(f.amount)}</div><button onClick={()=>del(f.id)} style={{background:'none',border:'none',color:'var(--border2)',fontSize:20,padding:0,cursor:'pointer'}}>×</button></div>))}</Card>}
-  </div>);
-}
-
-function ShareView({shareItems,setShareItems}){
-  const [sd,setSd]=useState(today());const [sn,setSn]=useState('');const [sa,setSa]=useState('');const [sp,setSp]=useState('');const [sm,setSm]=useState('');
-  const inp={padding:'12px 14px',borderRadius:'var(--rs)',border:'1px solid var(--border2)',background:'var(--surface)',color:'var(--text)',outline:'none',width:'100%',fontSize:15};
-  async function add(){
-    const a=parseFloat(sa);const p=sp.split(',').map(x=>x.trim()).filter(Boolean);const mem=sm.split(',').map(x=>x.trim()).filter(Boolean);
-    if(!a||!p.length||!mem.length)return;
-    const item={id:Date.now(),date:sd,note:sn,amount:a,payers:p,members:mem};
-    const {error}=await sb.from('share_items').upsert({...item,payers:JSON.stringify(p),members:JSON.stringify(mem)});
-    if(!error){setShareItems([...shareItems,item]);setSn('');setSa('');setSp('');setSm('');showSync('已儲存','ok');}
-    else showSync('儲存失敗','error');
-  }
-  async function del(id){
-    await sb.from('share_items').delete().eq('id',id);
-    setShareItems(shareItems.filter(x=>x.id!==id));
-  }
-  const settle=useMemo(()=>{
-    const bal={};
-    shareItems.forEach(s=>{
-      const payers=Array.isArray(s.payers)?s.payers:JSON.parse(s.payers||'[]');
-      const members=Array.isArray(s.members)?s.members:JSON.parse(s.members||'[]');
-      const sh=s.amount/members.length;members.forEach(m=>{bal[m]=(bal[m]||0)-sh;});
-      const pe=s.amount/payers.length;payers.forEach(p=>{bal[p]=(bal[p]||0)+pe;});
-    });
-    const r=[];const cred=Object.entries(bal).filter(([,v])=>v>0.01);const debt=Object.entries(bal).filter(([,v])=>v<-0.01);
-    cred.forEach(([c,cv])=>debt.forEach(([d,dv])=>{if(cv>0.01&&dv<-0.01)r.push({from:d,to:c,amt:Math.min(cv,Math.abs(dv))});}));
-    return r;
-  },[shareItems]);
-  return(<div>
-    <Card>
-      <SLabel>新增共享記錄</SLabel>
-      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}><input type="date" value={sd} onChange={e=>setSd(e.target.value)} style={inp}/><input type="number" value={sa} onChange={e=>setSa(e.target.value)} placeholder="總金額" inputMode="numeric" style={inp}/></div>
-      <input value={sn} onChange={e=>setSn(e.target.value)} placeholder="用途說明" style={{...inp,marginBottom:8}}/>
-      <input value={sp} onChange={e=>setSp(e.target.value)} placeholder="付款人（逗號分隔）" style={{...inp,marginBottom:8}}/>
-      <input value={sm} onChange={e=>setSm(e.target.value)} placeholder="分攤成員（逗號分隔）" style={{...inp,marginBottom:10}}/>
-      <Btn onClick={add}>新增</Btn>
-    </Card>
-    {shareItems.length>0&&<>
-      <Card style={{padding:'0 0.75rem'}}>{shareItems.map((s,i)=>{
-        const members=Array.isArray(s.members)?s.members:JSON.parse(s.members||'[]');
-        const payers=Array.isArray(s.payers)?s.payers:JSON.parse(s.payers||'[]');
-        return(<div key={s.id} style={{display:'flex',alignItems:'center',gap:8,padding:'11px 0',borderBottom:i<shareItems.length-1?'1px solid var(--border)':'none'}}><div style={{flex:1,minWidth:0}}><div style={{fontSize:14,fontWeight:500}}>{s.note||'共享記錄'}</div><div style={{fontSize:11,color:'var(--text3)',marginTop:1}}>{s.date} · {payers.join('、')} 付 · {members.length}人</div></div><div style={{fontSize:15,fontWeight:600,color:'var(--red)',fontFamily:'DM Mono,monospace'}}>${fmt(s.amount)}</div><button onClick={()=>del(s.id)} style={{background:'none',border:'none',color:'var(--border2)',fontSize:20,padding:0,cursor:'pointer'}}>×</button></div>);
-      })}</Card>
-      <Card><SLabel>結算建議</SLabel>{settle.length===0?<div style={{fontSize:14,color:'var(--green)',fontWeight:500}}>✓ 帳目已平</div>:settle.map((s,i)=>(<div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 10px',background:'var(--surface2)',borderRadius:10,marginBottom:6,fontSize:13}}><span style={{fontWeight:600}}>{s.from}</span><span style={{color:'var(--text3)',fontSize:12}}>→ 付給</span><span style={{fontWeight:600}}>{s.to}</span><span style={{marginLeft:'auto',color:'var(--red)',fontWeight:600,fontFamily:'DM Mono,monospace'}}>${fmt(s.amt)}</span></div>))}</Card>
-    </>}
-  </div>);
-}
-
-function AIView({records,budgets,viewMonth}){
+function AIView({records,viewMonth}){
   const [cards,setCards]=useState([]);const [loading,setLoading]=useState(false);const [ran,setRan]=useState(false);
   const m=ym(viewMonth);
   const mo=records.filter(r=>r.date.startsWith(m));
@@ -451,6 +384,8 @@ function AIView({records,budgets,viewMonth}){
 }
 
 function App(){
+  const [user,setUser]=useState(null);
+  const [authLoading,setAuthLoading]=useState(true);
   const [tab,setTab]=useState('home');
   const [moreTab,setMoreTab]=useState('budget');
   const [viewMonth,setViewMonth]=useState(new Date());
@@ -459,55 +394,72 @@ function App(){
   const [budgets,setBudgets]=useState({});
   const [fixedItems,setFixedItems]=useState([]);
   const [shareItems,setShareItems]=useState([]);
-  const [loading,setLoading]=useState(true);
+  const [dataLoading,setDataLoading]=useState(false);
   const [desktop,setDesktop]=useState(isDesktop());
 
   useEffect(()=>{
-    const h=()=>setDesktop(isDesktop());
-    window.addEventListener('resize',h);
-    return()=>window.removeEventListener('resize',h);
+    sb.auth.getSession().then(({data:{session}})=>{
+      setUser(session?.user??null);
+      setAuthLoading(false);
+    });
+    const {data:{subscription}}=sb.auth.onAuthStateChange((_,session)=>{
+      setUser(session?.user??null);
+      setAuthLoading(false);
+    });
+    return()=>subscription.unsubscribe();
   },[]);
 
   useEffect(()=>{
+    if(!user)return;
     async function loadAll(){
-      showSync('從雲端載入資料...');
-      const [r,a,b,f,s]=await Promise.all([
-        sb.from('records').select('*').order('date',{ascending:false}),
-        sb.from('accounts').select('*'),
-        sb.from('budgets').select('*'),
-        sb.from('fixed_items').select('*'),
-        sb.from('share_items').select('*'),
+      setDataLoading(true);showSync('從雲端載入資料...');
+      const uid=user.id;
+      const [r,a,b]=await Promise.all([
+        sb.from('records').select('*').eq('user_id',uid).order('date',{ascending:false}),
+        sb.from('accounts').select('*').eq('user_id',uid),
+        sb.from('budgets').select('*').eq('user_id',uid),
       ]);
       if(r.data)setRecords(r.data);
-      if(a.data)setAccounts(a.data.length>0?a.data:[{id:1,name:'現金',type:'現金',init:0},{id:2,name:'銀行',type:'銀行存款',init:0}]);
+      if(a.data)setAccounts(a.data.length>0?a.data:[{id:Date.now(),name:'現金',type:'現金',init:0,user_id:uid},{id:Date.now()+1,name:'銀行',type:'銀行存款',init:0,user_id:uid}]);
       if(b.data){const bd={};b.data.forEach(x=>{bd[x.cat]=x.amount;});setBudgets(bd);}
-      if(f.data)setFixedItems(f.data);
-      if(s.data)setShareItems(s.data.map(x=>({...x,payers:typeof x.payers==='string'?JSON.parse(x.payers):x.payers,members:typeof x.members==='string'?JSON.parse(x.members):x.members})));
-      setLoading(false);
-      showSync('資料已同步','ok');
+      setDataLoading(false);showSync('資料已同步','ok');
     }
     loadAll();
-  },[]);
+    const h=()=>setDesktop(isDesktop());
+    window.addEventListener('resize',h);
+    return()=>window.removeEventListener('resize',h);
+  },[user]);
+
+  async function signOut(){
+    await sb.auth.signOut();
+    setUser(null);setRecords([]);setAccounts([]);setBudgets({});
+  }
 
   function changeMonth(d){setViewMonth(new Date(viewMonth.getFullYear(),viewMonth.getMonth()+d,1));}
   const monthLabel=`${viewMonth.getFullYear()}年${viewMonth.getMonth()+1}月`;
 
+  if(authLoading)return(<div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'100vh',flexDirection:'column',gap:12}}><div style={{fontSize:28}}>💰</div><div style={{fontSize:14,color:'var(--text2)'}}>載入中...</div></div>);
+  if(!user)return <LoginPage/>;
+
   const viewMap={
     home:<HomeView records={records} accounts={accounts} budgets={budgets} viewMonth={viewMonth}/>,
-    add:<AddView records={records} setRecords={setRecords} accounts={accounts} onDone={()=>setTab('home')}/>,
+    add:<AddView records={records} setRecords={setRecords} accounts={accounts} userId={user.id} onDone={()=>setTab('home')}/>,
     records:<RecordsView records={records} setRecords={setRecords} viewMonth={viewMonth}/>,
     budget:<BudgetView budgets={budgets} setBudgets={setBudgets} records={records} viewMonth={viewMonth}/>,
     accounts:<AccountsView accounts={accounts} setAccounts={setAccounts} records={records}/>,
-    fixed:<FixedView fixedItems={fixedItems} setFixedItems={setFixedItems} records={records} setRecords={setRecords} accounts={accounts} viewMonth={viewMonth}/>,
-    share:<ShareView shareItems={shareItems} setShareItems={setShareItems}/>,
-    ai:<AIView records={records} budgets={budgets} viewMonth={viewMonth}/>,
+    ai:<AIView records={records} viewMonth={viewMonth}/>,
   };
 
-  if(loading)return(<div style={{display:'flex',alignItems:'center',justifyContent:'center',height:'60vh',flexDirection:'column',gap:12}}><div style={{fontSize:28}}>💰</div><div style={{fontSize:14,color:'var(--text2)'}}>從雲端載入資料中...</div></div>);
+  const userAvatar=(
+    <div style={{display:'flex',alignItems:'center',gap:8}}>
+      {user.user_metadata?.avatar_url&&<img src={user.user_metadata.avatar_url} style={{width:28,height:28,borderRadius:'50%'}}/>}
+      <button onClick={signOut} style={{background:'transparent',border:'1px solid var(--border2)',borderRadius:8,padding:'4px 10px',fontSize:12,color:'var(--text2)',cursor:'pointer'}}>登出</button>
+    </div>
+  );
 
   if(desktop){
     return(<div style={{display:'grid',gridTemplateColumns:'200px 1fr',minHeight:'100vh',maxWidth:800,margin:'0 auto'}}>
-      <div style={{background:'var(--surface)',borderRight:'1px solid var(--border)',padding:'1.5rem 1rem',position:'sticky',top:0,height:'100vh',overflowY:'auto'}}>
+      <div style={{background:'var(--surface)',borderRight:'1px solid var(--border)',padding:'1.5rem 1rem',position:'sticky',top:0,height:'100vh',overflowY:'auto',display:'flex',flexDirection:'column'}}>
         <div style={{fontSize:18,fontWeight:600,padding:'0 0.5rem 1rem',borderBottom:'1px solid var(--border)',marginBottom:'0.5rem'}}>我的帳本</div>
         <div style={{display:'flex',alignItems:'center',gap:6,padding:'0 0.5rem',marginBottom:'1rem'}}>
           <button onClick={()=>changeMonth(-1)} style={{width:24,height:24,borderRadius:'50%',border:'1px solid var(--border2)',background:'transparent',fontSize:14,cursor:'pointer',color:'var(--text2)',display:'flex',alignItems:'center',justifyContent:'center'}}>‹</button>
@@ -515,19 +467,22 @@ function App(){
           <button onClick={()=>changeMonth(1)} style={{width:24,height:24,borderRadius:'50%',border:'1px solid var(--border2)',background:'transparent',fontSize:14,cursor:'pointer',color:'var(--text2)',display:'flex',alignItems:'center',justifyContent:'center'}}>›</button>
         </div>
         {ALL_TABS.map(t=>(<button key={t.id} onClick={()=>setTab(t.id)} style={{display:'flex',alignItems:'center',gap:8,width:'100%',padding:'9px 12px',borderRadius:10,border:'none',background:tab===t.id?'var(--surface2)':'transparent',color:tab===t.id?'var(--text)':'var(--text2)',fontWeight:tab===t.id?600:400,fontSize:14,cursor:'pointer',marginBottom:2,textAlign:'left'}}><span style={{fontSize:16}}>{t.icon}</span>{t.label}</button>))}
-        <div style={{marginTop:'auto',paddingTop:'1rem',fontSize:11,color:'var(--text3)',textAlign:'center',borderTop:'1px solid var(--border)',marginTop:'1rem'}}>資料儲存於 Supabase</div>
+        <div style={{marginTop:'auto',paddingTop:'1rem',borderTop:'1px solid var(--border)'}}>{userAvatar}</div>
       </div>
-      <div style={{padding:'1.5rem',overflowY:'auto'}}>{viewMap[tab]||viewMap.home}</div>
+      <div style={{padding:'1.5rem',overflowY:'auto'}}>{dataLoading?<div style={{textAlign:'center',padding:'3rem',color:'var(--text3)'}}>載入中...</div>:viewMap[tab]||viewMap.home}</div>
     </div>);
   }
 
   return(<div>
     {tab!=='add'&&<div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'1rem 1rem 0.5rem'}}>
       <div style={{fontSize:20,fontWeight:600,letterSpacing:'-0.5px'}}>我的帳本</div>
-      <div style={{display:'flex',alignItems:'center',gap:8}}>
-        <button onClick={()=>changeMonth(-1)} style={{width:32,height:32,borderRadius:'50%',border:'1px solid var(--border2)',background:'transparent',fontSize:18,color:'var(--text2)',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}>‹</button>
-        <span style={{fontSize:13,fontWeight:500,minWidth:80,textAlign:'center'}}>{monthLabel}</span>
-        <button onClick={()=>changeMonth(1)} style={{width:32,height:32,borderRadius:'50%',border:'1px solid var(--border2)',background:'transparent',fontSize:18,color:'var(--text2)',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}>›</button>
+      <div style={{display:'flex',alignItems:'center',gap:10}}>
+        <div style={{display:'flex',alignItems:'center',gap:8}}>
+          <button onClick={()=>changeMonth(-1)} style={{width:30,height:30,borderRadius:'50%',border:'1px solid var(--border2)',background:'transparent',fontSize:16,color:'var(--text2)',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}>‹</button>
+          <span style={{fontSize:12,fontWeight:500,minWidth:72,textAlign:'center'}}>{monthLabel}</span>
+          <button onClick={()=>changeMonth(1)} style={{width:30,height:30,borderRadius:'50%',border:'1px solid var(--border2)',background:'transparent',fontSize:16,color:'var(--text2)',display:'flex',alignItems:'center',justifyContent:'center',cursor:'pointer'}}>›</button>
+        </div>
+        {user.user_metadata?.avatar_url&&<img src={user.user_metadata.avatar_url} onClick={signOut} style={{width:28,height:28,borderRadius:'50%',cursor:'pointer'}} title="點擊登出"/>}
       </div>
     </div>}
     <div style={{padding:'0 1rem'}}>
@@ -535,7 +490,7 @@ function App(){
         <div style={{display:'flex',gap:2,background:'var(--surface2)',borderRadius:12,padding:3,marginBottom:12,overflowX:'auto'}}>
           {MORE_TABS.map(t=>(<button key={t.id} onClick={()=>setMoreTab(t.id)} style={{flex:'0 0 auto',padding:'7px 13px',borderRadius:9,border:'none',background:moreTab===t.id?'var(--surface)':'transparent',color:moreTab===t.id?'var(--text)':'var(--text2)',fontWeight:moreTab===t.id?600:400,fontSize:13,cursor:'pointer'}}>{t.label}</button>))}
         </div>
-        {viewMap[moreTab]}
+        {viewMap[moreTab]||viewMap.budget}
       </>):viewMap[tab]||viewMap.home}
     </div>
     <div style={{position:'fixed',bottom:0,left:'50%',transform:'translateX(-50%)',width:'100%',maxWidth:480,background:'var(--surface)',borderTop:'1px solid var(--border)',display:'flex',zIndex:100,paddingBottom:'env(safe-area-inset-bottom)'}}>
