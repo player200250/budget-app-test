@@ -157,11 +157,11 @@ function HomeView({records,accounts,budgets,viewMonth}){
       <Card>
         <div style={{fontSize:11,color:'var(--text3)',fontWeight:500,letterSpacing:'0.06em',textTransform:'uppercase',marginBottom:6}}>本月支出</div>
         <div style={{fontSize:40,fontWeight:600,letterSpacing:'-2px',color:'var(--red)',fontFamily:'DM Mono,monospace',lineHeight:1,marginBottom:'1rem'}}>${fmt(expense)}</div>
-        <div style={{display:'grid',gridTemplateColumns:'repeat(4,1fr)',gap:8,marginBottom:'1rem'}}>
+        <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8,marginBottom:'1rem'}}>
           {[['收入',`+$${fmt(income)}`,'var(--green)'],['結餘',`${bal>=0?'+':'-'}$${fmt(Math.abs(bal))}`,bal>=0?'var(--green)':'var(--red)'],['總資產',`$${fmt(totalAssets)}`,'var(--text)'],['預估月底',`$${fmt(projected)}`,'var(--amber)']].map(([l,v,c])=>(
-            <div key={l} style={{background:'var(--surface2)',borderRadius:10,padding:'10px 12px'}}>
-              <div style={{fontSize:10,color:'var(--text3)',marginBottom:3}}>{l}</div>
-              <div style={{fontSize:13,fontWeight:600,color:c,fontFamily:'DM Mono,monospace'}}>{v}</div>
+            <div key={l} style={{background:'var(--surface2)',borderRadius:10,padding:'10px 12px',minWidth:0}}>
+              <div style={{fontSize:11,color:'var(--text3)',marginBottom:3}}>{l}</div>
+              <div style={{fontSize:14,fontWeight:600,color:c,fontFamily:'DM Mono,monospace',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{v}</div>
             </div>
           ))}
         </div>
@@ -179,7 +179,7 @@ function HomeView({records,accounts,budgets,viewMonth}){
           </div>
         ))}</Card>}
         {mo.slice(0,8).length>0&&<Card style={{padding:'0.75rem'}}><SLabel>最近記錄</SLabel>{mo.slice(0,8).map((r,i)=>{
-          const sign=r.type==='inc'?'+':'-';const color=r.type==='inc'?'var(--green)':'var(--red)';
+          const sign=r.type==='inc'?'+':r.type==='xfr'?'⇄':'-';const color=r.type==='inc'?'var(--green)':r.type==='xfr'?'var(--blue)':'var(--red)';
           return(<div key={r.id} style={{display:'flex',alignItems:'center',gap:10,padding:'9px 0',borderBottom:i<Math.min(mo.length,8)-1?'1px solid var(--border)':'none'}}>
             <div style={{width:34,height:34,borderRadius:9,background:CB[r.cat]||'#f0efe9',color:CC[r.cat]||'#6b6b65',display:'flex',alignItems:'center',justifyContent:'center',fontSize:14,fontWeight:600,flexShrink:0}}>{(r.note||r.cat||'?').charAt(0)}</div>
             <div style={{flex:1,minWidth:0}}>
@@ -243,11 +243,11 @@ function AddView({records,setRecords,accounts,userId,onDone}){
           <select value={currency} onChange={e=>setCurrency(e.target.value)} style={{...inp,flex:1,maxWidth:90}}>{Object.keys(FX).map(c=><option key={c}>{c}</option>)}</select>
         </div>
       </div>
-      <div style={{display:'grid',gridTemplateColumns:type==='xfr'?'1fr 1fr 1fr':'1fr 1fr',gap:8,marginBottom:10}}>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:type==='xfr'?8:10}}>
         <div><div style={{fontSize:12,color:'var(--text3)',marginBottom:4}}>日期</div><input type="date" value={date} onChange={e=>setDate(e.target.value)} style={inp}/></div>
         <div><div style={{fontSize:12,color:'var(--text3)',marginBottom:4}}>{type==='xfr'?'轉出帳戶':'帳戶'}</div><select value={acctId} onChange={e=>setAcctId(e.target.value)} style={inp}>{accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></div>
-        {type==='xfr'&&<div><div style={{fontSize:12,color:'var(--text3)',marginBottom:4}}>轉入帳戶</div><select value={acct2Id} onChange={e=>setAcct2Id(e.target.value)} style={inp}>{accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></div>}
       </div>
+      {type==='xfr'&&<div style={{marginBottom:10}}><div style={{fontSize:12,color:'var(--text3)',marginBottom:4}}>轉入帳戶</div><select value={acct2Id} onChange={e=>setAcct2Id(e.target.value)} style={inp}>{accounts.map(a=><option key={a.id} value={a.id}>{a.name}</option>)}</select></div>}
       <div style={{marginBottom:10}}>
         <div style={{fontSize:12,color:'var(--text3)',marginBottom:6}}>分類</div>
         <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
@@ -512,7 +512,7 @@ function FixedView({fixedItems,setFixedItems,records,setRecords,accounts,userId}
         return(<div key={item.id} style={{display:'flex',alignItems:'center',gap:10,padding:'11px 0',borderBottom:i<fixedItems.length-1?'1px solid var(--border)':'none'}}>
           <div style={{flex:1,minWidth:0}}>
             <div style={{fontSize:14,fontWeight:500}}>{item.name}</div>
-            <div style={{fontSize:11,color:'var(--text3)',marginTop:2,display:'flex',alignItems:'center',gap:6}}><Badge cat={item.cat}/>{freqMap[item.freq]} · 下次 {item.next_date}{due&&<span style={{color:'var(--amber)'}}>（到期）</span>}</div>
+            <div style={{fontSize:11,color:'var(--text3)',marginTop:2,display:'flex',alignItems:'center',gap:6,flexWrap:'wrap'}}><span style={{flexShrink:0}}><Badge cat={item.cat}/></span><span style={{flexShrink:0}}>{freqMap[item.freq]} · 下次 {item.next_date}</span>{due&&<span style={{color:'var(--amber)',flexShrink:0}}>（到期）</span>}</div>
           </div>
           <div style={{fontSize:14,fontWeight:600,color:tc,fontFamily:'DM Mono,monospace',flexShrink:0}}>{item.type==='inc'?'+':'-'}${fmt(item.amount)}</div>
           <button onClick={()=>apply(item)} style={{background:'var(--green-bg)',border:'none',borderRadius:8,padding:'6px 10px',fontSize:12,color:'var(--green)',cursor:'pointer',flexShrink:0}}>套用</button>
