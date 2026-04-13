@@ -24,7 +24,7 @@
   --r:16px;--rs:10px;
 }
 body{font-family:'DM Sans',sans-serif;background:var(--bg);color:var(--text);font-size:15px;min-height:100vh}
-#root{max-width:600px;margin:0 auto;padding-bottom:90px}
+#root{max-width:600px;margin:0 auto;padding-bottom:90px;overflow-x:hidden}
 button,input,select{font-family:'DM Sans',sans-serif;font-size:15px}
 input,select{padding:12px 14px;border-radius:var(--rs);border:1px solid var(--border2);background:var(--surface);color:var(--text);outline:none;width:100%}
 input::placeholder{color:var(--text3)}
@@ -156,7 +156,7 @@ function HomeView({records,accounts,budgets,viewMonth}){
     <div>
       <Card>
         <div style={{fontSize:11,color:'var(--text3)',fontWeight:500,letterSpacing:'0.06em',textTransform:'uppercase',marginBottom:6}}>本月支出</div>
-        <div style={{fontSize:40,fontWeight:600,letterSpacing:'-2px',color:'var(--red)',fontFamily:'DM Mono,monospace',lineHeight:1,marginBottom:'1rem'}}>${fmt(expense)}</div>
+        <div style={{fontSize:40,fontWeight:600,letterSpacing:'-2px',color:'var(--red)',fontFamily:'DM Mono,monospace',lineHeight:1,marginBottom:'1rem',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>${fmt(expense)}</div>
         <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8,marginBottom:'1rem'}}>
           {[['收入',`+$${fmt(income)}`,'var(--green)'],['結餘',`${bal>=0?'+':'-'}$${fmt(Math.abs(bal))}`,bal>=0?'var(--green)':'var(--red)'],['總資產',`$${fmt(totalAssets)}`,'var(--text)'],['預估月底',`$${fmt(projected)}`,'var(--amber)']].map(([l,v,c])=>(
             <div key={l} style={{background:'var(--surface2)',borderRadius:10,padding:'10px 12px',minWidth:0}}>
@@ -175,7 +175,7 @@ function HomeView({records,accounts,budgets,viewMonth}){
             <div style={{flex:1,height:10,background:'var(--surface2)',borderRadius:5,overflow:'hidden'}}>
               <div style={{height:'100%',width:`${Math.round(val/max*100)}%`,background:CC[cat]||'#6b6b65',borderRadius:5}}/>
             </div>
-            <span style={{fontSize:12,fontWeight:500,width:64,textAlign:'right',color:CC[cat]||'#6b6b65',fontFamily:'DM Mono,monospace'}}>${fmt(val)}</span>
+            <span style={{fontSize:12,fontWeight:500,flexShrink:0,textAlign:'right',color:CC[cat]||'#6b6b65',fontFamily:'DM Mono,monospace',maxWidth:88,overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>${fmt(val)}</span>
           </div>
         ))}</Card>}
         {mo.slice(0,8).length>0&&<Card style={{padding:'0.75rem'}}><SLabel>最近記錄</SLabel>{mo.slice(0,8).map((r,i)=>{
