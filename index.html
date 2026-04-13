@@ -204,7 +204,16 @@ function AddView({records,setRecords,accounts,userId,onDone}){
   const [currency,setCurrency]=useState('TWD');
   const [done,setDone]=useState(false);
   const [saving,setSaving]=useState(false);
-  const FX={TWD:1,USD:32,JPY:0.21,EUR:35,CNY:4.4,HKD:4.1};
+  const [FX,setFX]=useState({TWD:1,USD:32,JPY:0.21,EUR:35,CNY:4.4,HKD:4.1});
+  useEffect(()=>{
+    fetch('https://open.er-api.com/v6/latest/TWD')
+      .then(r=>r.json()).then(d=>{
+        if(d.result==='success'&&d.rates){
+          const inv=k=>d.rates[k]?+(1/d.rates[k]).toFixed(4):null;
+          setFX(f=>({...f,USD:inv('USD')||f.USD,JPY:inv('JPY')||f.JPY,EUR:inv('EUR')||f.EUR,CNY:inv('CNY')||f.CNY,HKD:inv('HKD')||f.HKD}));
+        }
+      }).catch(()=>{});
+  },[]);
   useEffect(()=>{setCat(CATS[type][0]);},[type]);
   const rate=FX[currency]||1;
   const twd=amount&&currency!=='TWD'?Math.round(parseFloat(amount)*rate):null;
@@ -290,12 +299,12 @@ function RecordsView({records,setRecords,viewMonth}){
   );
 }
 
-function BudgetView({budgets,setBudgets,records,viewMonth}){
+function BudgetView({budgets,setBudgets,records,viewMonth,userId}){
   const m=ym(viewMonth);
   const mo=records.filter(r=>r.date.startsWith(m));
   async function update(cat,val){
     setBudgets({...budgets,[cat]:val});
-    await sb.from('budgets').upsert({cat,amount:val});
+    await sb.from('budgets').upsert({cat,amount:val,user_id:userId});
   }
   return(<Card><SLabel>設定月預算（TWD）</SLabel>{CATS.exp.map(cat=>{
     const sp=mo.filter(r=>r.type==='exp'&&r.cat===cat).reduce((s,r)=>s+Number(r.twd),0);
@@ -311,12 +320,12 @@ function BudgetView({budgets,setBudgets,records,viewMonth}){
   })}</Card>);
 }
 
-function AccountsView({accounts,setAccounts,records}){
+function AccountsView({accounts,setAccounts,records,userId}){
   const [name,setName]=useState('');const [type,setType]=useState('現金');const [init,setInit]=useState('');
   const inp={padding:'12px 14px',borderRadius:'var(--rs)',border:'1px solid var(--border2)',background:'var(--surface)',color:'var(--text)',outline:'none',width:'100%',fontSize:15};
   async function add(){
     if(!name.trim())return;
-    const acct={id:Date.now(),name:name.trim(),type,init:parseFloat(init)||0};
+    const acct={id:Date.now(),user_id:userId,name:name.trim(),type,init:parseFloat(init)||0};
     await sb.from('accounts').upsert(acct);
     setAccounts([...accounts,acct]);setName('');setInit('');showSync('已儲存','ok');
   }
@@ -383,6 +392,206 @@ function AIView({records,viewMonth}){
   </div>);
 }
 
+function FixedView({fixedItems,setFixedItems,records,setRecords,accounts,userId}){
+  const [name,setName]=useState('');
+  const [type,setType]=useState('exp');
+  const [cat,setCat]=useState(CATS.exp[0]);
+  const [amount,setAmount]=useState('');
+  const [freq,setFreq]=useState('monthly');
+  const [nextDate,setNextDate]=useState(today());
+  const [saving,setSaving]=useState(false);
+  const inp={padding:'12px 14px',borderRadius:'var(--rs)',border:'1px solid var(--border2)',background:'var(--surface)',color:'var(--text)',outline:'none',width:'100%',fontSize:15};
+  useEffect(()=>{setCat(CATS[type][0]);},[type]);
+  const freqMap={monthly:'每月',weekly:'每週',yearly:'每年'};
+  const typeConf={exp:{label:'支出',color:'var(--red)',bg:'var(--red-bg)'},inc:{label:'收入',color:'var(--green)',bg:'var(--green-bg)'}};
+  async function add(){
+    if(!name.trim()||!amount)return;
+    setSaving(true);
+    const item={id:Date.now(),user_id:userId,name:name.trim(),type,cat,amount:parseFloat(amount),currency:'TWD',freq,next_date:nextDate};
+    const {error}=await sb.from('fixed_items').upsert(item);
+    if(!error){setFixedItems([...fixedItems,item]);setName('');setAmount('');showSync('已儲存','ok');}
+    else showSync('儲存失敗','err');
+    setSaving(false);
+  }
+  async function del(id){
+    await sb.from('fixed_items').delete().eq('id',id);
+    setFixedItems(fixedItems.filter(x=>x.id!==id));
+    showSync('已刪除','ok');
+  }
+  async function apply(item){
+    const acctId=accounts[0]?.id||1;
+    const rec={id:Date.now(),date:today(),type:item.type,acct_id:acctId,cat:item.cat,note:item.name+'（固定）',amount:item.amount,currency:item.currency||'TWD',twd:item.amount,user_id:userId};
+    const {error}=await sb.from('records').upsert(rec);
+    if(!error){
+      setRecords([rec,...records]);
+      const nd=new Date(item.next_date);
+      if(item.freq==='monthly')nd.setMonth(nd.getMonth()+1);
+      else if(item.freq==='weekly')nd.setDate(nd.getDate()+7);
+      else nd.setFullYear(nd.getFullYear()+1);
+      const newNext=nd.toISOString().slice(0,10);
+      await sb.from('fixed_items').update({next_date:newNext}).eq('id',item.id);
+      setFixedItems(fixedItems.map(x=>x.id===item.id?{...x,next_date:newNext}:x));
+      showSync('已套用至記錄','ok');
+    }
+  }
+  const overdue=fixedItems.filter(x=>x.next_date<=today());
+  return(<div>
+    <Card>
+      <SLabel>新增固定收支</SLabel>
+      <div style={{display:'flex',gap:6,marginBottom:10}}>
+        {['exp','inc'].map(t=>(<button key={t} onClick={()=>setType(t)} style={{flex:1,padding:'10px 0',borderRadius:10,border:`1.5px solid ${type===t?typeConf[t].color:'var(--border)'}`,background:type===t?typeConf[t].bg:'transparent',color:type===t?typeConf[t].color:'var(--text2)',fontWeight:type===t?600:400,fontSize:14,cursor:'pointer'}}>{typeConf[t].label}</button>))}
+      </div>
+      <div style={{marginBottom:8}}><input value={name} onChange={e=>setName(e.target.value)} placeholder="項目名稱（如：房租、薪水）" style={inp}/></div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+        <input type="number" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="金額（TWD）" style={inp}/>
+        <select value={freq} onChange={e=>setFreq(e.target.value)} style={inp}>{Object.entries(freqMap).map(([k,v])=><option key={k} value={k}>{v}</option>)}</select>
+      </div>
+      <div style={{marginBottom:10}}>
+        <div style={{fontSize:12,color:'var(--text3)',marginBottom:4}}>分類</div>
+        <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+          {CATS[type].map(c=>(<button key={c} onClick={()=>setCat(c)} style={{padding:'7px 11px',borderRadius:20,border:`1.5px solid ${cat===c?CC[c]||'var(--text)':'var(--border)'}`,background:cat===c?CB[c]||'var(--surface2)':'transparent',color:cat===c?CC[c]||'var(--text)':'var(--text2)',fontSize:13,fontWeight:cat===c?600:400,cursor:'pointer'}}>{c}</button>))}
+        </div>
+      </div>
+      <div style={{marginBottom:10}}><div style={{fontSize:12,color:'var(--text3)',marginBottom:4}}>下次執行日期</div><input type="date" value={nextDate} onChange={e=>setNextDate(e.target.value)} style={inp}/></div>
+      <Btn onClick={add} style={{opacity:saving?0.6:1}}>{saving?'儲存中...':'新增固定收支'}</Btn>
+    </Card>
+    {overdue.length>0&&<div style={{background:'var(--amber-bg)',borderRadius:12,padding:'10px 14px',marginBottom:10,fontSize:13,color:'var(--amber)'}}>⚠ 有 {overdue.length} 筆固定收支到期，請點「套用」建立記錄</div>}
+    {fixedItems.length>0&&<Card style={{padding:'0 0.75rem'}}>
+      <SLabel style={{padding:'0.75rem 0 0'}}>固定收支清單</SLabel>
+      {fixedItems.map((item,i)=>{
+        const tc=item.type==='inc'?'var(--green)':'var(--red)';
+        const due=item.next_date<=today();
+        return(<div key={item.id} style={{display:'flex',alignItems:'center',gap:10,padding:'11px 0',borderBottom:i<fixedItems.length-1?'1px solid var(--border)':'none'}}>
+          <div style={{flex:1,minWidth:0}}>
+            <div style={{fontSize:14,fontWeight:500}}>{item.name}</div>
+            <div style={{fontSize:11,color:'var(--text3)',marginTop:2,display:'flex',alignItems:'center',gap:6}}><Badge cat={item.cat}/>{freqMap[item.freq]} · 下次 {item.next_date}{due&&<span style={{color:'var(--amber)'}}>（到期）</span>}</div>
+          </div>
+          <div style={{fontSize:14,fontWeight:600,color:tc,fontFamily:'DM Mono,monospace',flexShrink:0}}>{item.type==='inc'?'+':'-'}${fmt(item.amount)}</div>
+          <button onClick={()=>apply(item)} style={{background:'var(--green-bg)',border:'none',borderRadius:8,padding:'6px 10px',fontSize:12,color:'var(--green)',cursor:'pointer',flexShrink:0}}>套用</button>
+          <button onClick={()=>del(item.id)} style={{background:'none',border:'none',color:'var(--border2)',fontSize:20,padding:'0 0 0 2px',flexShrink:0,cursor:'pointer'}}>×</button>
+        </div>);
+      })}
+    </Card>}
+    {!fixedItems.length&&<div style={{textAlign:'center',padding:'3rem',color:'var(--text3)'}}>尚無固定收支項目</div>}
+  </div>);
+}
+
+function ShareView({userId}){
+  const [members,setMembers]=useState([]);
+  const [expenses,setExpenses]=useState([]);
+  const [newMember,setNewMember]=useState('');
+  const [payer,setPayer]=useState('');
+  const [amount,setAmount]=useState('');
+  const [note,setNote]=useState('');
+  const [date,setDate]=useState(today());
+  const [parts,setParts]=useState([]);
+  const [loading,setLoading]=useState(true);
+  const inp={padding:'10px 12px',borderRadius:'var(--rs)',border:'1px solid var(--border2)',background:'var(--surface)',color:'var(--text)',outline:'none',fontSize:14};
+  useEffect(()=>{
+    sb.from('share_data').select('*').eq('user_id',userId).maybeSingle()
+      .then(({data})=>{
+        if(data){if(data.members)setMembers(data.members);if(data.expenses)setExpenses(data.expenses);}
+        setLoading(false);
+      });
+  },[]);
+  async function saveData(m,e){
+    await sb.from('share_data').upsert({user_id:userId,members:m,expenses:e});
+  }
+  function addMember(){
+    if(!newMember.trim()||members.includes(newMember.trim()))return;
+    const m=[...members,newMember.trim()];setMembers(m);setNewMember('');saveData(m,expenses);
+  }
+  function removeMember(nm){
+    const m=members.filter(x=>x!==nm);setMembers(m);saveData(m,expenses);
+  }
+  function togglePart(nm){setParts(p=>p.includes(nm)?p.filter(x=>x!==nm):[...p,nm]);}
+  function addExpense(){
+    if(!payer||!amount||parts.length===0)return;
+    const exp={id:Date.now(),payer,amount:parseFloat(amount),note:note.trim(),date,participants:parts};
+    const e=[...expenses,exp];setExpenses(e);setAmount('');setNote('');setParts([]);saveData(members,e);
+  }
+  function delExpense(id){const e=expenses.filter(x=>x.id!==id);setExpenses(e);saveData(members,e);}
+  const balances={};
+  members.forEach(m=>{balances[m]=0;});
+  expenses.forEach(exp=>{
+    if(!Object.prototype.hasOwnProperty.call(balances,exp.payer))balances[exp.payer]=0;
+    balances[exp.payer]+=exp.amount;
+    const share=exp.amount/exp.participants.length;
+    exp.participants.forEach(p=>{if(!Object.prototype.hasOwnProperty.call(balances,p))balances[p]=0;balances[p]-=share;});
+  });
+  const settlements=[];
+  const pCopy=Object.entries(balances).filter(([,v])=>v>0.01).sort((a,b)=>b[1]-a[1]).map(([n,v])=>({n,v}));
+  const nCopy=Object.entries(balances).filter(([,v])=>v<-0.01).sort((a,b)=>a[1]-b[1]).map(([n,v])=>({n,v}));
+  let pi=0,ni=0;
+  while(pi<pCopy.length&&ni<nCopy.length){
+    const cr=pCopy[pi];const db=nCopy[ni];
+    const amt=Math.min(cr.v,-db.v);
+    settlements.push({from:db.n,to:cr.n,amount:Math.round(amt)});
+    cr.v-=amt;db.v+=amt;
+    if(Math.abs(cr.v)<0.01)pi++;if(Math.abs(db.v)<0.01)ni++;
+  }
+  const total=expenses.reduce((s,e)=>s+e.amount,0);
+  if(loading)return <div style={{textAlign:'center',padding:'3rem',color:'var(--text3)'}}>載入中...</div>;
+  return(<div>
+    <Card>
+      <SLabel>成員管理</SLabel>
+      <div style={{display:'flex',gap:8,marginBottom:8}}>
+        <input value={newMember} onChange={e=>setNewMember(e.target.value)} onKeyDown={e=>e.key==='Enter'&&addMember()} placeholder="新增成員名稱" style={{...inp,flex:1,width:'auto'}}/>
+        <button onClick={addMember} style={{padding:'10px 16px',borderRadius:'var(--r)',border:'none',background:'var(--text)',color:'#fff',fontSize:14,fontWeight:600,cursor:'pointer',flexShrink:0}}>新增</button>
+      </div>
+      <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+        {members.map(m=>(<span key={m} style={{background:'var(--surface2)',borderRadius:20,padding:'5px 10px',fontSize:13,display:'flex',alignItems:'center',gap:6}}>{m}<button onClick={()=>removeMember(m)} style={{background:'none',border:'none',color:'var(--text3)',fontSize:16,cursor:'pointer',padding:0,lineHeight:1}}>×</button></span>))}
+        {!members.length&&<span style={{fontSize:13,color:'var(--text3)'}}>尚未新增成員</span>}
+      </div>
+    </Card>
+    {members.length>=2&&<Card>
+      <SLabel>新增共享支出</SLabel>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:8}}>
+        <div><div style={{fontSize:12,color:'var(--text3)',marginBottom:4}}>付款人</div>
+          <select value={payer} onChange={e=>setPayer(e.target.value)} style={{...inp,width:'100%'}}><option value=''>選擇付款人</option>{members.map(m=><option key={m}>{m}</option>)}</select>
+        </div>
+        <div><div style={{fontSize:12,color:'var(--text3)',marginBottom:4}}>金額（TWD）</div>
+          <input type="number" value={amount} onChange={e=>setAmount(e.target.value)} placeholder="0" style={{...inp,width:'100%'}}/>
+        </div>
+      </div>
+      <div style={{marginBottom:8}}>
+        <div style={{fontSize:12,color:'var(--text3)',marginBottom:4}}>分攤成員</div>
+        <div style={{display:'flex',gap:6,flexWrap:'wrap'}}>
+          {members.map(m=>(<button key={m} onClick={()=>togglePart(m)} style={{padding:'7px 12px',borderRadius:20,border:`1.5px solid ${parts.includes(m)?'var(--blue)':'var(--border)'}`,background:parts.includes(m)?'var(--blue-bg)':'transparent',color:parts.includes(m)?'var(--blue)':'var(--text2)',fontSize:13,cursor:'pointer'}}>{m}</button>))}
+        </div>
+      </div>
+      <div style={{display:'grid',gridTemplateColumns:'1fr 1fr',gap:8,marginBottom:10}}>
+        <input value={note} onChange={e=>setNote(e.target.value)} placeholder="備註（選填）" style={{...inp,width:'100%'}}/>
+        <input type="date" value={date} onChange={e=>setDate(e.target.value)} style={{...inp,width:'100%'}}/>
+      </div>
+      <Btn onClick={addExpense}>新增支出</Btn>
+    </Card>}
+    {settlements.length>0&&<Card style={{background:'var(--green-bg)',border:'1px solid rgba(26,122,85,0.3)'}}>
+      <SLabel>結算方式</SLabel>
+      {settlements.map((s,i)=>(<div key={i} style={{display:'flex',alignItems:'center',gap:8,padding:'8px 0',fontSize:14,borderBottom:i<settlements.length-1?'1px solid rgba(26,122,85,0.15)':'none'}}>
+        <span style={{fontWeight:600,color:'var(--red)'}}>{s.from}</span>
+        <span style={{color:'var(--text3)'}}>付給</span>
+        <span style={{fontWeight:600,color:'var(--green)'}}>{s.to}</span>
+        <span style={{marginLeft:'auto',fontWeight:600,fontFamily:'DM Mono,monospace',color:'var(--green)'}}>${fmt(s.amount)}</span>
+      </div>))}
+    </Card>}
+    {expenses.length>0&&<Card style={{padding:'0 0.75rem'}}>
+      <div style={{display:'flex',alignItems:'center',justifyContent:'space-between',padding:'0.75rem 0 0.25rem'}}>
+        <SLabel style={{margin:0}}>共享支出（{expenses.length} 筆 · 合計 ${fmt(total)}）</SLabel>
+      </div>
+      {expenses.map((exp,i)=>(<div key={exp.id} style={{display:'flex',alignItems:'center',gap:10,padding:'10px 0',borderBottom:i<expenses.length-1?'1px solid var(--border)':'none'}}>
+        <div style={{flex:1,minWidth:0}}>
+          <div style={{fontSize:14,fontWeight:500}}>{exp.note||'共享支出'}</div>
+          <div style={{fontSize:11,color:'var(--text3)',marginTop:2}}>{exp.payer} 付款 · {exp.participants.join('、')} 分攤 · {exp.date}</div>
+        </div>
+        <div style={{fontSize:14,fontWeight:600,fontFamily:'DM Mono,monospace',flexShrink:0}}>${fmt(exp.amount)}</div>
+        <button onClick={()=>delExpense(exp.id)} style={{background:'none',border:'none',color:'var(--border2)',fontSize:20,padding:'0 0 0 2px',flexShrink:0,cursor:'pointer'}}>×</button>
+      </div>))}
+    </Card>}
+    {members.length<2&&members.length===0&&<div style={{textAlign:'center',padding:'3rem',color:'var(--text3)'}}>請先新增至少 2 位成員</div>}
+  </div>);
+}
+
 function App(){
   const [user,setUser]=useState(null);
   const [authLoading,setAuthLoading]=useState(true);
@@ -414,14 +623,16 @@ function App(){
     async function loadAll(){
       setDataLoading(true);showSync('從雲端載入資料...');
       const uid=user.id;
-      const [r,a,b]=await Promise.all([
+      const [r,a,b,fi]=await Promise.all([
         sb.from('records').select('*').eq('user_id',uid).order('date',{ascending:false}),
         sb.from('accounts').select('*').eq('user_id',uid),
         sb.from('budgets').select('*').eq('user_id',uid),
+        sb.from('fixed_items').select('*').eq('user_id',uid).order('next_date',{ascending:true}),
       ]);
       if(r.data)setRecords(r.data);
       if(a.data)setAccounts(a.data.length>0?a.data:[{id:Date.now(),name:'現金',type:'現金',init:0,user_id:uid},{id:Date.now()+1,name:'銀行',type:'銀行存款',init:0,user_id:uid}]);
       if(b.data){const bd={};b.data.forEach(x=>{bd[x.cat]=x.amount;});setBudgets(bd);}
+      if(fi.data)setFixedItems(fi.data);
       setDataLoading(false);showSync('資料已同步','ok');
     }
     loadAll();
@@ -445,8 +656,10 @@ function App(){
     home:<HomeView records={records} accounts={accounts} budgets={budgets} viewMonth={viewMonth}/>,
     add:<AddView records={records} setRecords={setRecords} accounts={accounts} userId={user.id} onDone={()=>setTab('home')}/>,
     records:<RecordsView records={records} setRecords={setRecords} viewMonth={viewMonth}/>,
-    budget:<BudgetView budgets={budgets} setBudgets={setBudgets} records={records} viewMonth={viewMonth}/>,
-    accounts:<AccountsView accounts={accounts} setAccounts={setAccounts} records={records}/>,
+    budget:<BudgetView budgets={budgets} setBudgets={setBudgets} records={records} viewMonth={viewMonth} userId={user.id}/>,
+    accounts:<AccountsView accounts={accounts} setAccounts={setAccounts} records={records} userId={user.id}/>,
+    fixed:<FixedView fixedItems={fixedItems} setFixedItems={setFixedItems} records={records} setRecords={setRecords} accounts={accounts} userId={user.id}/>,
+    share:<ShareView userId={user.id}/>,
     ai:<AIView records={records} viewMonth={viewMonth}/>,
   };
 
