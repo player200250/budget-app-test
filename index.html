@@ -78,6 +78,7 @@ function showSync(msg,type='info'){
 function fmt(n){return Math.round(n).toLocaleString();}
 function today(){const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;}
 function ym(d){return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}`;}
+function csvEscape(v){const s=String(v==null?'':v);return(s.includes(',')||s.includes('"')||s.includes('\n'))?'"'+s.replace(/"/g,'""')+'"':s;}
 const isDesktop=()=>window.innerWidth>=600;
 
 const Card=({children,style={}})=>(
@@ -147,8 +148,9 @@ function HomeView({records,accounts,budgets,viewMonth}){
     records.forEach(r=>{if(r.type==='inc'&&r.acct_id===a.id)b+=Number(r.twd);if(r.type==='exp'&&r.acct_id===a.id)b-=Number(r.twd);if(r.type==='xfr'&&r.acct_id===a.id)b-=Number(r.twd);if(r.type==='xfr'&&r.acct2_id===a.id)b+=Number(r.twd);});
     return s+b;
   },0);
-  const days=new Date().getDate();
-  const projected=days>0?Math.round(expense/days*30):0;
+  const isCurrentMonth=ym(viewMonth)===ym(new Date());
+  const days=isCurrentMonth?new Date().getDate():0;
+  const projected=isCurrentMonth&&days>0?Math.round(expense/days*30):null;
   const catExp={};mo.filter(r=>r.type==='exp').forEach(r=>{catExp[r.cat]=(catExp[r.cat]||0)+Number(r.twd);});
   const top=Object.entries(catExp).sort((a,b)=>b[1]-a[1]).slice(0,6);
   const max=top[0]?top[0][1]:1;
@@ -158,7 +160,7 @@ function HomeView({records,accounts,budgets,viewMonth}){
         <div style={{fontSize:11,color:'var(--text3)',fontWeight:500,letterSpacing:'0.06em',textTransform:'uppercase',marginBottom:6}}>本月支出</div>
         <div style={{fontSize:40,fontWeight:600,letterSpacing:'-2px',color:'var(--red)',fontFamily:'DM Mono,monospace',lineHeight:1,marginBottom:'1rem',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>${fmt(expense)}</div>
         <div style={{display:'grid',gridTemplateColumns:'repeat(2,1fr)',gap:8,marginBottom:'1rem'}}>
-          {[['收入',`+$${fmt(income)}`,'var(--green)'],['結餘',`${bal>=0?'+':'-'}$${fmt(Math.abs(bal))}`,bal>=0?'var(--green)':'var(--red)'],['總資產',`$${fmt(totalAssets)}`,'var(--text)'],['預估月底',`$${fmt(projected)}`,'var(--amber)']].map(([l,v,c])=>(
+          {[['收入',`+$${fmt(income)}`,'var(--green)'],['結餘',`${bal>=0?'+':'-'}$${fmt(Math.abs(bal))}`,bal>=0?'var(--green)':'var(--red)'],['總資產',`$${fmt(totalAssets)}`,'var(--text)'],['預估月底',projected!==null?`$${fmt(projected)}`:'─','var(--amber)']].map(([l,v,c])=>(
             <div key={l} style={{background:'var(--surface2)',borderRadius:10,padding:'10px 12px',minWidth:0}}>
               <div style={{fontSize:11,color:'var(--text3)',marginBottom:3}}>{l}</div>
               <div style={{fontSize:14,fontWeight:600,color:c,fontFamily:'DM Mono,monospace',overflow:'hidden',textOverflow:'ellipsis',whiteSpace:'nowrap'}}>{v}</div>
@@ -218,7 +220,7 @@ function QuickEntry({records,setRecords,accounts,userId,onSwitchFull}){
     const a=parseFloat(amount);
     if(!a||a<=0||saving)return;
     setSaving(true);setSavedCat(cat);
-    const rec={id:Date.now(),date:today(),type,acct_id:cashAcct?.id||null,acct2_id:null,cat,note:'',payer:'',amount:a,currency:'TWD',twd:Math.round(a),user_id:userId};
+    const rec={id:crypto.randomUUID(),date:today(),type,acct_id:cashAcct?.id||null,acct2_id:null,cat,note:'',payer:'',amount:a,currency:'TWD',twd:Math.round(a),user_id:userId};
     const {error}=await sb.from('records').upsert(rec);
     if(!error){setRecords([rec,...records]);showSync('已儲存','ok');setTimeout(()=>{setSaving(false);setSavedCat(null);setAmount('');},900);}
     else{showSync('儲存失敗','err');setSaving(false);setSavedCat(null);}
@@ -278,7 +280,7 @@ function AddView({records,setRecords,accounts,userId,onDone}){
   async function submit(){
     const a=parseFloat(amount);if(!a||a<=0)return;
     setSaving(true);showSync('儲存中...');
-    const rec={id:Date.now(),date,type,acct_id:parseInt(acctId),acct2_id:type==='xfr'?parseInt(acct2Id):null,cat,note:note.trim(),payer:'',amount:a,currency,twd:Math.round(a*rate),user_id:userId};
+    const rec={id:crypto.randomUUID(),date,type,acct_id:acctId,acct2_id:type==='xfr'?acct2Id:null,cat,note:note.trim(),payer:'',amount:a,currency,twd:Math.round(a*rate),user_id:userId};
     const {error}=await sb.from('records').upsert(rec);
     if(error){showSync('儲存失敗','err');}
     else{setRecords([rec,...records]);showSync('已儲存','ok');setNote('');setAmount('');setDone(true);setTimeout(()=>{setDone(false);if(onDone)onDone();},1200);}
@@ -317,17 +319,17 @@ function AddView({records,setRecords,accounts,userId,onDone}){
   );
 }
 
-function RecordsView({records,setRecords,viewMonth}){
+function RecordsView({records,setRecords,viewMonth,userId}){
   const m=ym(viewMonth);
   const filtered=records.filter(r=>r.date.startsWith(m));
   async function del(id){
-    await sb.from('records').delete().eq('id',id);
+    await sb.from('records').delete().eq('id',id).eq('user_id',userId);
     setRecords(records.filter(x=>x.id!==id));
     showSync('已刪除','ok');
   }
   function exportCSV(){
     let csv='\uFEFF日期,類型,分類,備註,金額,幣別,TWD\n';
-    filtered.forEach(r=>{csv+=`${r.date},${r.type==='exp'?'支出':r.type==='inc'?'收入':'轉帳'},${r.cat||''},${r.note||''},${r.amount},${r.currency||'TWD'},${r.twd}\n`;});
+    filtered.forEach(r=>{csv+=`${csvEscape(r.date)},${r.type==='exp'?'支出':r.type==='inc'?'收入':'轉帳'},${csvEscape(r.cat)},${csvEscape(r.note)},${csvEscape(r.amount)},${csvEscape(r.currency||'TWD')},${csvEscape(r.twd)}\n`;});
     const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
     const a=document.createElement('a');a.href=url;a.download=`記帳_${m}.csv`;a.click();
   }
@@ -384,12 +386,12 @@ function AccountsView({accounts,setAccounts,records,userId}){
   const inp={padding:'12px 14px',borderRadius:'var(--rs)',border:'1px solid var(--border2)',background:'var(--surface)',color:'var(--text)',outline:'none',width:'100%',fontSize:15};
   async function add(){
     if(!name.trim())return;
-    const acct={id:Date.now(),user_id:userId,name:name.trim(),type,init:parseFloat(init)||0};
+    const acct={id:crypto.randomUUID(),user_id:userId,name:name.trim(),type,init:parseFloat(init)||0};
     await sb.from('accounts').upsert(acct);
     setAccounts([...accounts,acct]);setName('');setInit('');showSync('已儲存','ok');
   }
   async function del(id){
-    await sb.from('accounts').delete().eq('id',id);
+    await sb.from('accounts').delete().eq('id',id).eq('user_id',userId);
     setAccounts(accounts.filter(x=>x.id!==id));
   }
   return(<div>
@@ -427,8 +429,9 @@ function AIView({records,viewMonth,budgets}){
   const income=mo.filter(r=>r.type==='inc').reduce((s,r)=>s+Number(r.twd),0);
   const expense=mo.filter(r=>r.type==='exp').reduce((s,r)=>s+Number(r.twd),0);
   const saveRate=income>0?Math.round((income-expense)/income*100):null;
-  const days=new Date().getDate();
-  const projected=days>0?Math.round(expense/days*30):0;
+  const isCurrentMonth=m===ym(new Date());
+  const days=isCurrentMonth?new Date().getDate():0;
+  const projected=isCurrentMonth&&days>0?Math.round(expense/days*30):0;
   const catExp={};mo.filter(r=>r.type==='exp').forEach(r=>{catExp[r.cat]=(catExp[r.cat]||0)+Number(r.twd);});
 
   function analyze(){
@@ -443,7 +446,7 @@ function AIView({records,viewMonth,budgets}){
     } else if(saveRate>=10){
       result.push({title:`儲蓄率 ${saveRate}% ─ 尚可`,body:`理想目標為 30%，目前尚差約 $${fmt(Math.max(0,Math.round(income*0.3-(income-expense))))}。可嘗試從彈性支出（餐飲、娛樂）著手節省。`,type:'tip'});
     } else {
-      result.push({title:`儲蓄率 ${saveRate}% ─ 需注意`,body:`支出已佔收入 ${100-saveRate}%，月底預估支出 $${fmt(projected)}，建議立即找出可削減的項目。`,type:'warn'});
+      result.push({title:`儲蓄率 ${saveRate}% ─ 需注意`,body:`支出已佔收入 ${100-saveRate}%${isCurrentMonth?`，月底預估支出 $${fmt(projected)}`:''}，建議立即找出可削減的項目。`,type:'warn'});
     }
 
     // 2. 最大支出分類
@@ -474,7 +477,7 @@ function AIView({records,viewMonth,budgets}){
     }
 
     // 4. 月底超支預警（至少消費 5 天後才預測）
-    if(income>0&&days>=5&&projected>income*1.1){
+    if(isCurrentMonth&&income>0&&days>=5&&projected>income*1.1){
       const remain=30-days;
       const daily=remain>0?Math.round((income-expense)/remain):0;
       result.push({title:'本月可能超支',body:`目前日均消費 $${fmt(Math.round(expense/days))}，月底預估 $${fmt(projected)}（超出收入 $${fmt(projected-income)}）。後續每日建議控制在 $${fmt(Math.max(0,daily))} 以內。`,type:'warn'});
@@ -512,14 +515,14 @@ function FixedView({fixedItems,setFixedItems,records,setRecords,accounts,userId}
   async function add(){
     if(!name.trim()||!amount)return;
     setSaving(true);
-    const item={id:Date.now(),user_id:userId,name:name.trim(),type,cat,amount:parseFloat(amount),currency:'TWD',freq,next_date:nextDate};
+    const item={id:crypto.randomUUID(),user_id:userId,name:name.trim(),type,cat,amount:parseFloat(amount),currency:'TWD',freq,next_date:nextDate};
     const {error}=await sb.from('fixed_items').upsert(item);
     if(!error){setFixedItems([...fixedItems,item]);setName('');setAmount('');showSync('已儲存','ok');}
     else showSync('儲存失敗','err');
     setSaving(false);
   }
   async function del(id){
-    await sb.from('fixed_items').delete().eq('id',id);
+    await sb.from('fixed_items').delete().eq('id',id).eq('user_id',userId);
     setFixedItems(fixedItems.filter(x=>x.id!==id));
     showSync('已刪除','ok');
   }
@@ -527,7 +530,7 @@ function FixedView({fixedItems,setFixedItems,records,setRecords,accounts,userId}
     const acctId=accounts[0]?.id;
     if(!acctId){showSync('請先建立帳戶','err');return;}
     showSync('套用中...');
-    const rec={id:Date.now(),date:today(),type:item.type,acct_id:Number(acctId),cat:item.cat,note:item.name+'（固定）',payer:'',amount:Number(item.amount),currency:item.currency||'TWD',twd:Number(item.amount),user_id:userId};
+    const rec={id:crypto.randomUUID(),date:today(),type:item.type,acct_id:acctId,cat:item.cat,note:item.name+'（固定）',payer:'',amount:Number(item.amount),currency:item.currency||'TWD',twd:Number(item.amount),user_id:userId};
     const {error}=await sb.from('records').upsert(rec);
     if(error){showSync('套用失敗：'+error.message,'err');return;}
     setRecords([rec,...records]);
@@ -621,7 +624,7 @@ function ShareView({userId}){
     if(!payerName||!amount||splitParts.length===0)return;
     const amt=parseFloat(amount);
     setSaving(true);
-    const row={id:Date.now(),user_id:userId,date,note:note.trim(),amount:amt,payers:{[payerName]:amt},members:splitParts};
+    const row={id:crypto.randomUUID(),user_id:userId,date,note:note.trim(),amount:amt,payers:{[payerName]:amt},members:splitParts};
     const {error}=await sb.from('share_items').insert(row);
     if(!error){setItems([row,...items]);setAmount('');setNote('');setSplitParts([]);showSync('已儲存','ok');}
     else showSync('儲存失敗','err');
@@ -629,7 +632,7 @@ function ShareView({userId}){
   }
 
   async function delItem(id){
-    await sb.from('share_items').delete().eq('id',id);
+    await sb.from('share_items').delete().eq('id',id).eq('user_id',userId);
     setItems(items.filter(x=>x.id!==id));
     showSync('已刪除','ok');
   }
@@ -781,7 +784,7 @@ function App(){
         sb.from('fixed_items').select('*').eq('user_id',uid).order('next_date',{ascending:true}),
       ]);
       if(r.data)setRecords(r.data);
-      if(a.data)setAccounts(a.data.length>0?a.data:[{id:Date.now(),name:'現金',type:'現金',init:0,user_id:uid},{id:Date.now()+1,name:'銀行',type:'銀行存款',init:0,user_id:uid}]);
+      if(a.data)setAccounts(a.data.length>0?a.data:[{id:crypto.randomUUID(),name:'現金',type:'現金',init:0,user_id:uid},{id:crypto.randomUUID()+1,name:'銀行',type:'銀行存款',init:0,user_id:uid}]);
       if(b.data){const bd={};b.data.forEach(x=>{bd[x.cat]=x.amount;});setBudgets(bd);}
       if(fi.data)setFixedItems(fi.data);
       setDataLoading(false);showSync('資料已同步','ok');
@@ -806,7 +809,7 @@ function App(){
   const viewMap={
     home:<HomeView records={records} accounts={accounts} budgets={budgets} viewMonth={viewMonth}/>,
     add:<AddView records={records} setRecords={setRecords} accounts={accounts} userId={user.id} onDone={()=>setTab('home')}/>,
-    records:<RecordsView records={records} setRecords={setRecords} viewMonth={viewMonth}/>,
+    records:<RecordsView records={records} setRecords={setRecords} viewMonth={viewMonth} userId={user.id}/>,
     budget:<BudgetView budgets={budgets} setBudgets={setBudgets} records={records} viewMonth={viewMonth} userId={user.id}/>,
     accounts:<AccountsView accounts={accounts} setAccounts={setAccounts} records={records} userId={user.id}/>,
     fixed:<FixedView fixedItems={fixedItems} setFixedItems={setFixedItems} records={records} setRecords={setRecords} accounts={accounts} userId={user.id}/>,
