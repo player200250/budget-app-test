@@ -354,7 +354,7 @@ function RecordsView({records,setRecords,viewMonth,userId}){
     showSync('已刪除','ok');
   }
   function exportCSV(){
-    let csv='\uFEFF日期,類型,分類,備註,金額,幣別,TWD\n';
+    let csv='\uFEFF日期,類型,分類,備註,金額,幣別,台幣金額\n';
     filtered.forEach(r=>{csv+=`${csvEscape(r.date)},${r.type==='exp'?'支出':r.type==='inc'?'收入':'轉帳'},${csvEscape(r.cat)},${csvEscape(r.note)},${csvEscape(r.amount)},${csvEscape(r.currency||'TWD')},${csvEscape(r.twd)}\n`;});
     const url=URL.createObjectURL(new Blob([csv],{type:'text/csv;charset=utf-8'}));
     const a=document.createElement('a');a.href=url;a.download=`記帳_${m}.csv`;a.click();
