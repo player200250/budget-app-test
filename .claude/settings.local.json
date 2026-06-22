@@ -3,7 +3,19 @@
     "allow": [
       "Bash(git add *)",
       "Bash(git commit *)",
-      "Bash(git push *)"
+      "Bash(git push *)",
+      "Bash(curl -sL \"https://unpkg.com/@supabase/supabase-js@2\")",
+      "Bash(curl -sI \"https://unpkg.com/@supabase/supabase-js@2\")",
+      "Bash(npx -v)",
+      "Read(//c/Program Files/Google/Chrome/Application/**)",
+      "Read(//c/Program Files \\(x86\\)/Microsoft/Edge/Application/**)",
+      "Read(//c/Program Files \\(x86\\)/Google/Chrome/Application/**)",
+      "Bash(cd /tmp)",
+      "Bash(sed -i \"s#/json/new?about:blank\\\\`\\)\\).json\\(\\)#/json/new?about:blank\\\\`,{method:'PUT'}\\)\\).json\\(\\)#\" cdp2.mjs)",
+      "Bash(node /tmp/cdp2.mjs)",
+      "Bash(node /tmp/cdp.mjs \"http://127.0.0.1:8799/\")",
+      "Bash(pkill -f serve.mjs)",
+      "Bash(rm -f /tmp/cdp.mjs /tmp/cdp2.mjs /tmp/serve.mjs)"
     ]
   }
 }
