@@ -15,7 +15,12 @@
       "Bash(node /tmp/cdp2.mjs)",
       "Bash(node /tmp/cdp.mjs \"http://127.0.0.1:8799/\")",
       "Bash(pkill -f serve.mjs)",
-      "Bash(rm -f /tmp/cdp.mjs /tmp/cdp2.mjs /tmp/serve.mjs)"
+      "Bash(rm -f /tmp/cdp.mjs /tmp/cdp2.mjs /tmp/serve.mjs)",
+      "Bash(npm -v)",
+      "Bash(git remote *)",
+      "Bash(git mv *)",
+      "Bash(npm install *)",
+      "Bash(npm run *)"
     ]
   }
 }
