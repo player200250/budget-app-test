@@ -8,7 +8,8 @@ export default function LoginPage() {
     setLoading(true);
     const { error } = await sb.auth.signInWithOAuth({
       provider: 'google',
-      options: { redirectTo: window.location.href },
+      // 用乾淨網址（剝除殘留的 hash/query），避免 #access_token 累加造成重導迴圈
+      options: { redirectTo: window.location.origin + window.location.pathname },
     });
     if (error) { showSync('登入失敗：' + error.message, 'err'); setLoading(false); }
   }
