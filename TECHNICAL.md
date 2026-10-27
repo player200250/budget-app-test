@@ -199,4 +199,4 @@
 - **AI 分析**為規則式，名稱中的「AI」非指 LLM。
 - **多幣別**：僅 `records` 支援；`fixed_items` / `share_items` 固定為 TWD。
 - **30 天估算**：月底支出預估以固定 30 天計算，非當月實際天數。
-- **`budgets` 主鍵**：upsert 以 `(user_id, cat)` 為準，請確認資料庫已設對應的唯一鍵，否則同分類可能重複。
+- **`budgets` 唯一鍵**：upsert 指定 `onConflict: 'user_id,cat'`，資料庫須有對應唯一鍵（見 `supabase/budgets_unique_key.sql`），否則寫入會報錯。

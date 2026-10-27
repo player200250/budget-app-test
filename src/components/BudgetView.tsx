@@ -15,7 +15,7 @@ export default function BudgetView({ budgets, setBudgets, records, viewMonth, us
   const mo = records.filter(r => r.date.startsWith(m));
   async function update(cat: string, val: number) {
     setBudgets({ ...budgets, [cat]: val });
-    await sb.from('budgets').upsert({ cat, amount: val, user_id: userId });
+    await sb.from('budgets').upsert({ cat, amount: val, user_id: userId }, { onConflict: 'user_id,cat' });
   }
   return (<Card><SLabel>設定月預算（TWD）</SLabel>{CATS.exp.map(cat => {
     const sp = mo.filter(r => r.type === 'exp' && r.cat === cat).reduce((s, r) => s + Number(r.twd), 0);
