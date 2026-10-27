@@ -131,7 +131,7 @@
 | `components/AccountsView.tsx` | 帳戶 CRUD 與即時餘額 |
 | `components/FixedView.tsx` | 固定收支 CRUD、到期提醒、「套用」產生 record 並推進 `next_date` |
 | `components/ShareView.tsx` | 共享支出記錄、自動結算 |
-| `components/AIView.tsx` | 規則式財務分析（非真正 AI / LLM） |
+| `components/AIView.tsx` | 規則式財務分析 + 複製彙總給 Claude（非內建 LLM） |
 | `components/ui.tsx` | 共用元件：`Card` / `Badge` / `SLabel` / `ProgBar` / `Btn` |
 
 ### 共用常數（`lib/constants.ts`）
@@ -171,7 +171,9 @@
 3. 雙指標貪婪配對，每次以兩者較小絕對值結清，產生最少轉帳次數的結算方案。
 
 ### AI 分析（`AIView`）
-純規則式（非 LLM），依本月資料產生卡片：儲蓄率評估、最大支出分類集中度、預算超支/接近上限、月底超支預警（消費滿 5 天才預測）。
+純規則式（非 LLM），依本月資料產生卡片：儲蓄率評估、與上月同期比較（±15%）、最大支出分類集中度、異常大額支出（≥ 單筆中位數 3 倍且 ≥ $1,000，需 5 筆以上）、平日/週末日均差異（1.5 倍以上）、預算超支/接近上限、月底超支預警（消費滿 5 天才預測，以當月實際天數估算）。
+
+「交給 Claude 深入分析」：將本月分類支出與預算、近 6 個月趨勢、前 5 大單筆支出（不含備註）組成提示詞複製到剪貼簿，使用者自行貼到 claude.ai（使用自己的 Claude 方案，App 不呼叫任何 API）。
 
 ### 響應式版面
 - **桌機（≥600px）**：左側 240px 固定側邊欄 + 主內容區。
@@ -196,7 +198,6 @@
 - **RLS 是唯一資料防線**：前端金鑰公開，務必確認 RLS 已正確設定。
 - **無離線快取 / Service Worker**：目前 PWA 僅有 manifest，無法離線使用；資料完全依賴雲端。
 - **`payer` 欄位**：`records` 表保留但未實際使用。
-- **AI 分析**為規則式，名稱中的「AI」非指 LLM。
+- **AI 分析**為規則式；LLM 分析需手動複製到 claude.ai，結果不回存 App。
 - **多幣別**：僅 `records` 支援；`fixed_items` / `share_items` 固定為 TWD。
-- **30 天估算**：月底支出預估以固定 30 天計算，非當月實際天數。
 - **`budgets` 唯一鍵**：upsert 指定 `onConflict: 'user_id,cat'`，資料庫須有對應唯一鍵（見 `supabase/budgets_unique_key.sql`），否則寫入會報錯。
