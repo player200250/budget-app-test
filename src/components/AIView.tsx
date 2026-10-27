@@ -31,6 +31,7 @@ export default function AIView({ records, viewMonth, budgets }: {
   const [ran, setRan] = useState(false);
   const [copied, setCopied] = useState(false);
   const [showPrompt, setShowPrompt] = useState(false);
+  const [withNotes, setWithNotes] = useState(false);
   const m = ym(viewMonth);
   const mo = records.filter(r => r.date.startsWith(m));
   const moExp = mo.filter(r => r.type === 'exp');
@@ -80,9 +81,15 @@ export default function AIView({ records, viewMonth, budgets }: {
       }
     }
 
-    // 3. 最大支出分類
+    // 3. 「其他」佔比過高（超過 30% 時取代集中度卡片）
+    const otherPct = expense > 0 ? Math.round((catExp['其他'] || 0) / expense * 100) : 0;
+    if (otherPct > 30) {
+      result.push({ title: `「其他」佔支出 ${otherPct}%`, body: `本月有 $${fmt(catExp['其他'])} 歸在「其他」，建議到明細改成正確分類，分析才會準確。`, type: 'warn' });
+    }
+
+    // 4. 最大支出分類
     const topEntries = Object.entries(catExp).sort((a, b) => b[1] - a[1]);
-    if (topEntries.length > 0) {
+    if (topEntries.length > 0 && !(topEntries[0][0] === '其他' && otherPct > 30)) {
       const [topCat, topVal] = topEntries[0];
       const pct = expense > 0 ? Math.round(topVal / expense * 100) : 0;
       if (pct > 50) {
@@ -94,7 +101,7 @@ export default function AIView({ records, viewMonth, budgets }: {
       }
     }
 
-    // 4. 異常大額支出（高於本月單筆中位數 3 倍且至少 $1,000）
+    // 5. 異常大額支出（高於本月單筆中位數 3 倍且至少 $1,000）
     if (moExp.length >= 5) {
       const sorted = moExp.map(r => Number(r.twd)).sort((a, b) => a - b);
       const median = sorted[Math.floor(sorted.length / 2)];
@@ -104,7 +111,7 @@ export default function AIView({ records, viewMonth, budgets }: {
       }
     }
 
-    // 5. 平日 vs 週末日均消費
+    // 6. 平日 vs 週末日均消費
     const elapsed = isCurrentMonth ? days : monthDays;
     let wkDays = 0, weDays = 0;
     for (let d = 1; d <= elapsed; d++) { if (isWeekend(new Date(viewMonth.getFullYear(), viewMonth.getMonth(), d))) weDays++; else wkDays++; }
@@ -118,7 +125,7 @@ export default function AIView({ records, viewMonth, budgets }: {
       }
     }
 
-    // 6. 預算超支 / 接近上限警告
+    // 7. 預算超支 / 接近上限警告
     const bds = budgets || {};
     const overBudget = Object.entries(bds).filter(([c, bud]) => bud > 0 && (catExp[c] || 0) > bud);
     const nearBudget = Object.entries(bds).filter(([c, bud]) => bud > 0 && (catExp[c] || 0) / bud >= 0.7 && (catExp[c] || 0) <= bud);
@@ -131,7 +138,7 @@ export default function AIView({ records, viewMonth, budgets }: {
       result.push({ title: '預算控制良好', body: '所有已設定預算的分類目前使用率均低於 70%，財務紀律良好。', type: 'good' });
     }
 
-    // 7. 月底超支預警（至少消費 5 天後才預測）
+    // 8. 月底超支預警（至少消費 5 天後才預測）
     if (isCurrentMonth && income > 0 && days >= 5 && projected > income * 1.1) {
       const remain = monthDays - days;
       const daily = remain > 0 ? Math.round((income - expense) / remain) : 0;
@@ -142,7 +149,7 @@ export default function AIView({ records, viewMonth, budgets }: {
     setRan(true);
   }
 
-  // 給 Claude 的分析內容：只送彙總，不含備註
+  // 給 Claude 的分析內容：只送彙總，備註需使用者勾選才附上
   function buildPrompt() {
     const lines: string[] = [
       '請扮演我的個人理財顧問，根據以下記帳彙總（金額單位：新台幣）分析我的財務狀況：',
@@ -171,7 +178,7 @@ export default function AIView({ records, viewMonth, budgets }: {
     }
     const top = [...moExp].sort((a, b) => Number(b.twd) - Number(a.twd)).slice(0, 5);
     if (top.length) {
-      lines.push('', '【本月前 5 大單筆支出】', ...top.map(r => `- ${r.date} ${r.cat} $${fmt(Number(r.twd))}`));
+      lines.push('', '【本月前 5 大單筆支出】', ...top.map(r => `- ${r.date} ${r.cat} $${fmt(Number(r.twd))}${withNotes && r.note ? `（備註：${r.note}）` : ''}`));
     }
     return lines.join('\n');
   }
@@ -182,6 +189,7 @@ export default function AIView({ records, viewMonth, budgets }: {
   }
 
   useEffect(() => { setRan(false); setCopied(false); setShowPrompt(false); }, [m]);
+  useEffect(() => { setCopied(false); }, [withNotes]);
   useEffect(() => { if (!ran) analyze(); }, [ran]);
 
   const cm: Record<CardType, { bg: string; bc: string; tc: string }> = { good: { bg: '#e8f5ee', bc: '#1a7a55', tc: '#0d5c3a' }, warn: { bg: '#fdf5e0', bc: '#a06b00', tc: '#7a4f00' }, info: { bg: '#eaf1fb', bc: '#1a5fa8', tc: '#0d3f7a' }, tip: { bg: '#f0edfc', bc: '#5b3fa8', tc: '#3d2880' } };
@@ -193,7 +201,8 @@ export default function AIView({ records, viewMonth, budgets }: {
     <Btn onClick={() => { setRan(false); }} style={{ background: 'var(--purple-bg)', color: 'var(--purple)', marginTop: 4 }}>重新分析</Btn>
     {mo.length > 0 && (<div style={{ marginTop: 16, padding: 14, borderRadius: 12, border: '1px solid var(--border2)' }}>
       <div style={{ fontSize: 13, fontWeight: 600, color: 'var(--text)', marginBottom: 4 }}>交給 Claude 深入分析</div>
-      <div style={{ fontSize: 12, color: 'var(--text3)', lineHeight: 1.6, marginBottom: 10 }}>複製本月與近 6 個月的彙總（不含備註），貼到 Claude 即可取得分析並追問。</div>
+      <div style={{ fontSize: 12, color: 'var(--text3)', lineHeight: 1.6, marginBottom: 10 }}>複製本月與近 6 個月的彙總，貼到 Claude 即可取得分析並追問。</div>
+      <label style={{ display: 'flex', alignItems: 'center', gap: 6, fontSize: 12, color: 'var(--text2)', marginBottom: 10, cursor: 'pointer' }}><input type="checkbox" checked={withNotes} onChange={e => setWithNotes(e.target.checked)} />包含大額支出的備註（讓 Claude 看懂用途）</label>
       <Btn onClick={copyForClaude} style={{ background: 'var(--purple)' }}>{copied ? '✓ 已複製，再複製一次' : '複製分析內容'}</Btn>
       {copied && <a href="https://claude.ai/new" target="_blank" rel="noopener noreferrer" style={{ display: 'block', textAlign: 'center', marginTop: 8, padding: '12px 16px', borderRadius: 'var(--r)', background: 'var(--purple-bg)', color: 'var(--purple)', fontSize: 14, fontWeight: 600, textDecoration: 'none' }}>開啟 Claude 貼上 ↗</a>}
       <div onClick={() => setShowPrompt(!showPrompt)} style={{ marginTop: 10, fontSize: 12, color: 'var(--text3)', cursor: 'pointer', textAlign: 'center' }}>{showPrompt ? '隱藏' : '查看'}將複製的內容</div>
